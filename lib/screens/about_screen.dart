@@ -20,7 +20,13 @@ class AboutScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             // Logo + app name
-            Image.asset('assets/ui/logo.png', width: 72, height: 72),
+            Image.asset(
+              Theme.of(context).brightness == Brightness.dark
+                  ? 'assets/ui/logo.png'
+                  : 'assets/ui/logowhite.png',
+              width: 72,
+              height: 72,
+            ),
             const SizedBox(height: 14),
             Text(
               'SmartShield',

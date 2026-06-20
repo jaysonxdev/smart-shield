@@ -300,7 +300,7 @@ class _PermissionChatScreenState extends State<PermissionChatScreen>
     if (app.usedCameraRecently || app.usedMicRecently) return Colors.redAccent;
     if (app.usedLocationRecently) return Colors.orange;
     if (app.permissions.length > 5) return Colors.orange;
-    return Colors.green;
+    return const Color(0xFF00E6B8);
   }
 
   Widget _appCard(AppPermissionInfo app) {

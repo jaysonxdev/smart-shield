@@ -1,7 +1,9 @@
 // lib/models.dart
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'functions/virustotal.dart';
 
 enum Risk { low, medium, high }
@@ -76,6 +78,51 @@ class MockData {
     '/storage/emulated/0/LOST.DIR',
     '/storage/emulated/0/Android/media',
   ];
+}
+
+class ScanRecord {
+  final DateTime time;
+  final int totalScanned;
+  final int flagged;
+
+  ScanRecord({
+    required this.time,
+    required this.totalScanned,
+    required this.flagged,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'time': time.millisecondsSinceEpoch,
+    'totalScanned': totalScanned,
+    'flagged': flagged,
+  };
+
+  factory ScanRecord.fromJson(Map<String, dynamic> json) => ScanRecord(
+    time: DateTime.fromMillisecondsSinceEpoch(json['time'] as int),
+    totalScanned: json['totalScanned'] as int,
+    flagged: json['flagged'] as int,
+  );
+}
+
+class ScanHistoryService {
+  static const _key = 'scan_history';
+  static const _maxRecords = 20;
+
+  static Future<List<ScanRecord>> load() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getStringList(_key) ?? [];
+    return raw
+        .map((s) => ScanRecord.fromJson(jsonDecode(s) as Map<String, dynamic>))
+        .toList();
+  }
+
+  static Future<void> addRecord(ScanRecord record) async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getStringList(_key) ?? [];
+    raw.insert(0, jsonEncode(record.toJson()));
+    if (raw.length > _maxRecords) raw.removeLast();
+    await prefs.setStringList(_key, raw);
+  }
 }
 
 class ScanController {
@@ -175,6 +222,7 @@ class ScanController {
     vtCountdown = 0;
     onUpdate();
 
+    int flaggedThisScan = 0;
     final List<File> files = [];
 
     for (final folderPath in MockData.foldersToScan) {
@@ -205,6 +253,7 @@ class ScanController {
           result.risk,
           path: f.path,
         );
+        flaggedThisScan++;
         onUpdate();
       }
 
@@ -226,6 +275,11 @@ class ScanController {
     currentFile = null;
     vtCountdown = 0;
     cancelRequested = false;
+    await ScanHistoryService.addRecord(ScanRecord(
+      time: DateTime.now(),
+      totalScanned: totalScanned,
+      flagged: flaggedThisScan,
+    ));
     onUpdate();
   }
 

@@ -1,11 +1,14 @@
 // lib/main.dart
 import 'dart:async';
+import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show MethodCall, MethodChannel;
+import 'package:permission_handler/permission_handler.dart';
 import 'package:smartshield/scan_actions.dart';
 import 'package:smartshield/models.dart';
-import 'package:smartshield/screens/files_screen.dart';
 import 'package:smartshield/screens/permission_chat_screen.dart';
+import 'package:smartshield/screens/scan_history_screen.dart';
 import 'package:smartshield/screens/quarantine_screen.dart';
 import 'package:smartshield/screens/splash_screen.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -14,6 +17,7 @@ import 'package:smartshield/screens/junk_screen.dart';
 import 'package:smartshield/screens/about_screen.dart';
 import 'package:smartshield/services/auto_scan_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'theme_colors.dart';
 
 void main() async {
@@ -144,6 +148,8 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
+  static const _btChannel = MethodChannel('com.smartshield/bluetooth');
+
   final ScanController _ctrl = ScanController();
 
   late final AnimationController _pulseController;
@@ -153,6 +159,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   bool _showBubble = false;
   double _bubbleOpacity = 0.0;
   Timer? _bubbleAutoHideTimer;
+
+  ScanRecord? _lastScan;
 
   @override
   void initState() {
@@ -171,8 +179,22 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       duration: const Duration(seconds: 2),
     );
 
+    _btChannel.setMethodCallHandler(_onBtEvent);
+
     unawaited(AutoScanService.instance.init(_ctrl, () => setState(() {})));
     unawaited(_checkAndScheduleBubble());
+    unawaited(_loadLastScan());
+  }
+
+  Future<dynamic> _onBtEvent(MethodCall call) async {
+    if (!mounted || call.method != 'bluetoothDeviceConnected') return;
+    final name = call.arguments as String;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Bluetooth connected: $name — verify you recognize this device.'),
+        duration: const Duration(seconds: 5),
+      ),
+    );
   }
 
   @override
@@ -189,7 +211,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     final lastShown = prefs.getInt('ai_bubble_last_shown') ?? 0;
     final now = DateTime.now().millisecondsSinceEpoch;
     const oneDayMs = 24 * 60 * 60 * 1000;
-    if (now - lastShown < oneDayMs) return;
+    if (!kDebugMode && now - lastShown < oneDayMs) return;
 
     await Future.delayed(const Duration(milliseconds: 1500));
     if (!mounted) return;
@@ -206,6 +228,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       const Duration(seconds: 4),
       _dismissBubble,
     );
+  }
+
+  Future<void> _loadLastScan() async {
+    final history = await ScanHistoryService.load();
+    if (!mounted) return;
+    setState(() => _lastScan = history.isEmpty ? null : history.first);
   }
 
   void _dismissBubble() {
@@ -270,7 +298,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Color _riskColor(Risk r) {
     switch (r) {
       case Risk.low:
-        return Colors.green;
+        return const Color(0xFF00E6B8);
       case Risk.medium:
         return Colors.orange;
       case Risk.high:
@@ -283,7 +311,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       titleSpacing: 12,
       title: Row(
         children: [
-          Image.asset('assets/ui/logo.png', width: 28, height: 28),
+          Image.asset(
+            Theme.of(context).brightness == Brightness.dark
+                ? 'assets/ui/logo.png'
+                : 'assets/ui/logowhite.png',
+            width: 28,
+            height: 28,
+          ),
           const SizedBox(width: 10),
           Text(
             'SmartShield',
@@ -496,6 +530,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         refresh: () => setState(() {}),
                         context: context,
                       );
+                      unawaited(_loadLastScan());
                     },
               icon: const Icon(Icons.shield_outlined),
               label: Text(_ctrl.scanning ? 'Scanning...' : 'Scan Now'),
@@ -509,26 +544,33 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
+  String _formatScanTime(DateTime t) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final tDay = DateTime(t.year, t.month, t.day);
+    final hour = t.hour % 12 == 0 ? 12 : t.hour % 12;
+    final minute = t.minute.toString().padLeft(2, '0');
+    final period = t.hour < 12 ? 'AM' : 'PM';
+    final time = '$hour:$minute $period';
+    if (tDay == today) return 'Today at $time';
+    if (tDay == today.subtract(const Duration(days: 1))) return 'Yesterday at $time';
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    return '${months[t.month - 1]} ${t.day} at $time';
+  }
+
   Widget _scanSummaryCard() {
-    final suspiciousItems = _ctrl.alerts
-        .where((a) => a.risk == Risk.medium || a.risk == Risk.high)
-        .toList();
-    final flagged = suspiciousItems.length;
-    final hasData = _ctrl.totalScanned > 0;
+    final record = _lastScan;
+    final hasFlagged = record != null && record.flagged > 0;
     final accentColor =
-        flagged > 0 ? Colors.orangeAccent : Colors.greenAccent.shade200;
+        hasFlagged ? Colors.orangeAccent : const Color(0xFF00E6B8);
 
     return GestureDetector(
       onTap: () => Navigator.push(
         context,
-        MaterialPageRoute(
-          builder: (_) => FilesScreen(
-            title: 'Suspicious Files',
-            items: suspiciousItems,
-            color: Colors.orangeAccent,
-            icon: Icons.error_outline,
-          ),
-        ),
+        MaterialPageRoute(builder: (_) => const ScanHistoryScreen()),
       ),
       child: Card(
         child: Padding(
@@ -538,14 +580,18 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: accentColor.withValues(alpha: 0.12),
+                  color: record == null
+                      ? Colors.grey.withValues(alpha: 0.12)
+                      : accentColor.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(
-                  flagged > 0
+                  record == null
+                      ? Icons.history_outlined
+                      : hasFlagged
                       ? Icons.error_outline
                       : Icons.check_circle_outline,
-                  color: accentColor,
+                  color: record == null ? Colors.grey : accentColor,
                   size: 26,
                 ),
               ),
@@ -554,15 +600,21 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Last Scan',
-                      style: TextStyle(color: Colors.grey, fontSize: 13),
+                    Text(
+                      record == null
+                          ? 'Last Scan'
+                          : _formatScanTime(record.time),
+                      style: TextStyle(
+                        color: record == null ? Colors.grey : context.subtleText,
+                        fontSize: 13,
+                      ),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      hasData
-                          ? '${_ctrl.totalScanned} files checked, $flagged flagged'
-                          : 'No scan run yet',
+                      record == null
+                          ? 'No scan run yet'
+                          : '${record.totalScanned} files checked, '
+                              '${record.flagged} flagged',
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
@@ -571,7 +623,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   ],
                 ),
               ),
-              Icon(Icons.chevron_right, color: context.subtleText.withValues(alpha: 0.5)),
+              Icon(
+                Icons.chevron_right,
+                color: context.subtleText.withValues(alpha: 0.5),
+              ),
             ],
           ),
         ),
@@ -872,12 +927,59 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   late bool _autoScan;
   late bool _isDark;
+  bool _btGranted = false;
 
   @override
   void initState() {
     super.initState();
     _autoScan = AutoScanService.instance.enabled;
     _isDark = SmartShieldApp.themeNotifier.value == ThemeMode.dark;
+    if (Platform.isAndroid) unawaited(_checkBtPermission());
+  }
+
+  Future<void> _checkBtPermission() async {
+    final status = await Permission.bluetoothConnect.status;
+    if (mounted) setState(() => _btGranted = status.isGranted);
+  }
+
+  Future<void> _requestBtPermission() async {
+    final statuses = await [
+      Permission.bluetoothConnect,
+      Permission.notification,
+    ].request();
+
+    final granted = statuses[Permission.bluetoothConnect]?.isGranted ?? false;
+    if (mounted) setState(() => _btGranted = granted);
+
+    if (!granted && mounted) {
+      final permanentlyDenied =
+          statuses[Permission.bluetoothConnect] == PermissionStatus.permanentlyDenied;
+      if (permanentlyDenied) {
+        showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Text('Permission required'),
+            content: const Text(
+              'Bluetooth permission was permanently denied. '
+              'Open app settings to enable it manually.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  openAppSettings();
+                },
+                child: const Text('Open settings'),
+              ),
+            ],
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -915,6 +1017,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     setState(() => _isDark = value);
                   },
                 ),
+                if (Platform.isAndroid) ...[
+                  const Divider(height: 1, indent: 16, endIndent: 16),
+                  ListTile(
+                    leading: Icon(
+                      Icons.bluetooth,
+                      color: _btGranted ? const Color(0xFF00E6B8) : null,
+                    ),
+                    title: const Text('Bluetooth monitoring'),
+                    subtitle: Text(
+                      _btGranted
+                          ? 'Notifies you when a device connects'
+                          : 'Tap to allow connection alerts',
+                    ),
+                    trailing: _btGranted
+                        ? const Icon(
+                            Icons.check_circle,
+                            color: Color(0xFF00E6B8),
+                            size: 20,
+                          )
+                        : const Icon(Icons.chevron_right, size: 20),
+                    onTap: _btGranted ? null : _requestBtPermission,
+                  ),
+                ],
               ],
             ),
           ),

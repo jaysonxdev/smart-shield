@@ -77,7 +77,7 @@ class _ThreatsScreenState extends State<ThreatsScreen> {
             decoration: BoxDecoration(
               color: count > 0
                   ? color.withValues(alpha:0.15)
-                  : Colors.green.withValues(alpha:0.15),
+                  : const Color(0xFF00E6B8).withValues(alpha:0.15),
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
@@ -85,7 +85,7 @@ class _ThreatsScreenState extends State<ThreatsScreen> {
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
-                color: count > 0 ? color : Colors.green,
+                color: count > 0 ? color : const Color(0xFF00E6B8),
               ),
             ),
           ),
@@ -136,16 +136,16 @@ class _ThreatsScreenState extends State<ThreatsScreen> {
       margin: const EdgeInsets.only(bottom: 10),
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: Colors.green.withValues(alpha: 0.12),
+          backgroundColor: const Color(0xFF00E6B8).withValues(alpha: 0.12),
           child: const Icon(
             Icons.check_circle_outline,
-            color: Colors.green,
+            color: Color(0xFF00E6B8),
             size: 20,
           ),
         ),
         title: Text(
           message,
-          style: const TextStyle(color: Colors.green, fontSize: 13),
+          style: const TextStyle(color: Color(0xFF00E6B8), fontSize: 13),
         ),
       ),
     );
@@ -178,12 +178,12 @@ class _ThreatsScreenState extends State<ThreatsScreen> {
                     decoration: BoxDecoration(
                       color: totalThreats > 0
                           ? Colors.redAccent.withValues(alpha:0.1)
-                          : Colors.green.withValues(alpha:0.1),
+                          : const Color(0xFF00E6B8).withValues(alpha:0.1),
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(
                         color: totalThreats > 0
                             ? Colors.redAccent.withValues(alpha:0.3)
-                            : Colors.green.withValues(alpha:0.3),
+                            : const Color(0xFF00E6B8).withValues(alpha:0.3),
                       ),
                     ),
                     child: Row(
@@ -194,7 +194,7 @@ class _ThreatsScreenState extends State<ThreatsScreen> {
                               : Icons.verified_user,
                           color: totalThreats > 0
                               ? Colors.redAccent
-                              : Colors.green,
+                              : const Color(0xFF00E6B8),
                           size: 36,
                         ),
                         const SizedBox(width: 14),
@@ -211,7 +211,7 @@ class _ThreatsScreenState extends State<ThreatsScreen> {
                                   fontWeight: FontWeight.w700,
                                   color: totalThreats > 0
                                       ? Colors.redAccent
-                                      : Colors.green,
+                                      : const Color(0xFF00E6B8),
                                 ),
                               ),
                               const SizedBox(height: 4),

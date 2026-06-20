@@ -21,7 +21,7 @@ class FilesScreen extends StatelessWidget {
   Color _riskColor(Risk r) {
     switch (r) {
       case Risk.low:
-        return Colors.green;
+        return const Color(0xFF00E6B8);
       case Risk.medium:
         return Colors.orange;
       case Risk.high:

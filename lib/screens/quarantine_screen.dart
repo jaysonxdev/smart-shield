@@ -14,7 +14,7 @@ class _QuarantineScreenState extends State<QuarantineScreen> {
   Color _riskColor(Risk r) {
     switch (r) {
       case Risk.low:
-        return Colors.green;
+        return const Color(0xFF00E6B8);
       case Risk.medium:
         return Colors.orange;
       case Risk.high:
@@ -55,7 +55,7 @@ class _QuarantineScreenState extends State<QuarantineScreen> {
                   Icon(
                     Icons.verified_user_outlined,
                     size: 64,
-                    color: Colors.green.withValues(alpha: 0.4),
+                    color: const Color(0xFF00E6B8).withValues(alpha: 0.4),
                   ),
                   const SizedBox(height: 16),
                   const Text(

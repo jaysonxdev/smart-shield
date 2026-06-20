@@ -172,12 +172,12 @@ class _JunkScreenState extends State<JunkScreen> {
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: junkFiles.isEmpty
-                    ? Colors.green.withValues(alpha: 0.1)
+                    ? const Color(0xFF00E6B8).withValues(alpha: 0.1)
                     : Colors.orange.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(
                   color: junkFiles.isEmpty
-                      ? Colors.green.withValues(alpha: 0.3)
+                      ? const Color(0xFF00E6B8).withValues(alpha: 0.3)
                       : Colors.orange.withValues(alpha: 0.3),
                 ),
               ),
@@ -185,7 +185,9 @@ class _JunkScreenState extends State<JunkScreen> {
                 children: [
                   Icon(
                     junkFiles.isEmpty ? Icons.check_circle : Icons.delete_sweep,
-                    color: junkFiles.isEmpty ? Colors.green : Colors.orange,
+                    color: junkFiles.isEmpty
+                        ? const Color(0xFF00E6B8)
+                        : Colors.orange,
                     size: 36,
                   ),
                   const SizedBox(width: 14),
@@ -200,7 +202,7 @@ class _JunkScreenState extends State<JunkScreen> {
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
                           color: junkFiles.isEmpty
-                              ? Colors.green
+                              ? const Color(0xFF00E6B8)
                               : Colors.orange,
                         ),
                       ),
